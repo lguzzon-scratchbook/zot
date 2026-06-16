@@ -219,7 +219,9 @@ func Run(rawArgs []string, version string) error {
 	if cps := provider.CustomProviders(); len(cps) > 0 {
 		names := make([]string, 0, len(cps))
 		for name := range cps {
-			names = append(names, name)
+			if !isBuiltinProvider(name) {
+				names = append(names, name)
+			}
 		}
 		auth.SetExtraAPIKeyProviders(names)
 	}

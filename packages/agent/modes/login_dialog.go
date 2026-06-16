@@ -245,9 +245,17 @@ func providersForMethod(method string) []string {
 	} else {
 		providers = auth.APIKeyProviders()
 		// Append custom providers from models.json so they appear
-		// in the /login picker alongside built-in providers.
+		// in the /login picker alongside built-in providers. Dedupe in
+		// case models.json also adds metadata for a built-in provider.
+		seen := map[string]bool{}
+		for _, name := range providers {
+			seen[name] = true
+		}
 		for name := range provider.CustomProviders() {
-			providers = append(providers, name)
+			if !seen[name] {
+				providers = append(providers, name)
+				seen[name] = true
+			}
 		}
 	}
 	sort.Slice(providers, func(a, b int) bool {

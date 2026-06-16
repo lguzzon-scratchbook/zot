@@ -107,6 +107,15 @@ func SetExtraAPIKeyProviders(names []string) {
 	extraAPIKeyProviders = names
 }
 
+func isExtraAPIKeyProvider(p string) bool {
+	for _, name := range extraAPIKeyProviders {
+		if p == name {
+			return true
+		}
+	}
+	return false
+}
+
 // isKnownAPIKeyProvider reports whether the given provider supports
 // API-key login through the loopback flow. OAuth-only paths are handled
 // elsewhere (manager.StartOAuth).
@@ -116,12 +125,7 @@ func isKnownAPIKeyProvider(p string) bool {
 			return true
 		}
 	}
-	for _, name := range extraAPIKeyProviders {
-		if p == name {
-			return true
-		}
-	}
-	return false
+	return isExtraAPIKeyProvider(p)
 }
 
 func apiKeyProviderMessage() string {

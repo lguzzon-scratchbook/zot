@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 )
 
 // UserModelsFile is the JSON format for user-defined models.
@@ -117,13 +118,19 @@ func LoadUserModelsWithWarnings(path string) ([]Model, []string) {
 			normalized = "deepseek"
 		}
 
-		// Register custom providers: any provider with a baseUrl or
-		// an api format that isn't the built-in "openai"/"anthropic"
-		// alias is treated as user-defined. Also catch providers whose
-		// name doesn't match a known provider (detected later in
-		// build.go's isKnownProvider check).
-		if prov.BaseURL != "" || prov.API != "" {
-			api := prov.API
+		// Register custom providers that carry endpoint metadata either at
+		// the provider level or on any model. Model-level baseUrl-only
+		// configs still need a custom provider entry so Resolve/NewClient
+		// accept the provider name and choose a wire format.
+		hasModelBaseURL := false
+		for _, um := range prov.Models {
+			if um.BaseURL != "" {
+				hasModelBaseURL = true
+				break
+			}
+		}
+		if prov.BaseURL != "" || prov.API != "" || hasModelBaseURL {
+			api := strings.ToLower(strings.TrimSpace(prov.API))
 			if api == "" {
 				api = "openai"
 			}
@@ -133,6 +140,9 @@ func LoadUserModelsWithWarnings(path string) ([]Model, []string) {
 				api = "openai"
 			case "anthropic-messages", "messages", "anthropic":
 				api = "anthropic"
+			default:
+				warnings = append(warnings, fmt.Sprintf("models.json: provider %q has unknown api %q; defaulting to openai", providerName, prov.API))
+				api = "openai"
 			}
 			customProviders[normalized] = CustomProviderConfig{
 				BaseURL: prov.BaseURL,
@@ -192,9 +202,11 @@ func SetUserModels(models []Model) {
 	activeMu.Lock()
 	defer activeMu.Unlock()
 
-	// Ensure the active overlay is initialized so Active() reads from
-	// it instead of falling back to the static Catalog.
-	if !activeSet {
+	// Ensure the active overlay starts from the full built-in catalog
+	// when no live/cache overlay has been applied. Otherwise a fresh
+	// install with only models.json would hide every built-in model.
+	if !activeSet || active == nil {
+		active = append([]Model(nil), Catalog...)
 		activeSet = true
 	}
 

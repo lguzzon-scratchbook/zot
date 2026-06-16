@@ -416,9 +416,9 @@ func Resolve(args Args, requireCred bool) (Resolved, error) {
 			}
 			err = nil
 		}
-	} else if cfg, ok := provider.CustomProviders()[provName]; ok && cfg.BaseURL != "" {
-		// Prefer the base URL configured in models.json over the
-		// model base URL (which may be stale from live discovery).
+	} else if cfg, ok := provider.CustomProviders()[provName]; ok && resolvedModel.BaseURL == "" && cfg.BaseURL != "" {
+		// Fall back to the provider-level base URL when the model does
+		// not define its own endpoint.
 		resolvedModel.BaseURL = cfg.BaseURL
 	}
 	if err != nil {
@@ -456,7 +456,7 @@ func Resolve(args Args, requireCred bool) (Resolved, error) {
 		model = fm.ID
 	}
 
-	explicitBaseURL := args.BaseURL != ""
+	explicitBaseURL := args.BaseURL != "" || (resolvedModel.Source == "user" && resolvedModel.BaseURL != "")
 
 	// If the model defines a base URL (e.g. local ollama) and the
 	// user didn't pass --base-url, use the model's URL. For ollama,
@@ -772,9 +772,9 @@ func (r Resolved) NewClient() provider.Client {
 		if cfg, ok := provider.CustomProviders()[r.Provider]; ok {
 			switch cfg.API {
 			case "anthropic":
-				return provider.NewAnthropicCompat(r.Provider, r.Credential, r.BaseURL)
+				return wrap(provider.NewAnthropicCompat(r.Provider, r.Credential, r.BaseURL))
 			default: // "openai"
-				return provider.NewOpenAICompat(r.Provider, r.Credential, r.BaseURL, "")
+				return wrap(provider.NewOpenAICompat(r.Provider, r.Credential, r.BaseURL, ""))
 			}
 		}
 		if r.AuthMethod == "oauth" {
